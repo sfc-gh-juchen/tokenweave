@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Adapted from
-# https://github.com/huggingface/transformers/blob/v4.28.0/src/transformers/models/llama/modeling_llama.py
+# https://github.com/huggingface/transformers/blob/v4.28.0/src/transformers/models/qwen2/modeling_qwen2.py
+# Copyright 2024 The Qwen team.
 # Copyright 2023 The vLLM team.
 # Copyright 2022 EleutherAI and the HuggingFace Inc. team. All rights reserved.
 #
@@ -21,127 +22,116 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Inference-only Mixtral model."""
+"""Inference-only Qwen2 model compatible with HuggingFace weights."""
 from typing import Iterable, Optional, Set, Tuple, Union, Any
-import os
-import torch
-import torch.distributed._symmetric_memory as symm_mem
-from torch import nn
-from transformers import MixtralConfig
 
-from vllm.attention import Attention
+import torch
+from torch import nn
+import os
+import torch.distributed._symmetric_memory as symm_mem
+from transformers import Qwen2Config
+
+from vllm.attention import Attention, AttentionType
 from vllm.compilation.decorators import support_torch_compile
 from vllm.config import CacheConfig, VllmConfig
-from vllm.distributed import get_pp_group, get_tensor_model_parallel_world_size, pytorch_all_reduce, get_device_group, get_tensor_model_parallel_rank
-from vllm.model_executor.layers.fused_moe import FusedMoE
+from vllm.distributed import (get_pp_group, get_tensor_model_parallel_rank, get_device_group,
+                              get_tensor_model_parallel_world_size,
+                              pytorch_all_reduce)
+from vllm.logger import init_logger
+from vllm.model_executor.layers.activation import SiluAndMul
 from vllm.model_executor.layers.layernorm import RMSNorm
-from vllm.model_executor.layers.linear import (QKVParallelLinear,
-                                               ReplicatedLinear,
+from vllm.model_executor.layers.linear import (MergedColumnParallelLinear,
+                                               QKVParallelLinear,
                                                RowParallelLinear)
 from vllm.model_executor.layers.logits_processor import LogitsProcessor
+from vllm.model_executor.layers.pooler import Pooler, PoolingType
 from vllm.model_executor.layers.quantization import QuantizationConfig
 from vllm.model_executor.layers.rotary_embedding import get_rope
 from vllm.model_executor.layers.sampler import SamplerOutput, get_sampler
 from vllm.model_executor.layers.vocab_parallel_embedding import (
-    DEFAULT_VOCAB_PADDING_SIZE, ParallelLMHead, VocabParallelEmbedding)
+    ParallelLMHead, VocabParallelEmbedding)
 from vllm.model_executor.model_loader.weight_utils import (
     default_weight_loader, maybe_remap_kv_scale_name)
+from vllm.model_executor.pooling_metadata import PoolingMetadata
 from vllm.model_executor.sampling_metadata import SamplingMetadata
-from vllm.sequence import IntermediateTensors
+from vllm.sequence import IntermediateTensors, PoolerOutput
 from vllm.distributed.triton_comm.triton_comm import (
     multimem_all_reduce, multimem_reduce_scatter, multimem_all_gather, multimem_all_gather_async)
 from .interfaces import SupportsLoRA, SupportsPP
-from .utils import (AutoWeightsLoader, is_pp_missing_parameter,
+from .utils import (AutoWeightsLoader, PPMissingLayer, WeightsMapper,
+                    is_pp_missing_parameter,
                     make_empty_intermediate_tensors_factory, make_layers,
                     maybe_prefix)
 
+logger = init_logger(__name__)
 import json
 from functools import lru_cache
 
 @lru_cache(maxsize=None)
-def load_config(config_path="tokenweave_configs/mixtral_config_8.json"):
+def load_config(config_path="tokenweave_configs/qwen2_config_8.json"):
     base_dir = os.path.dirname(os.path.abspath(__file__))
     full_path = os.path.normpath(os.path.join(base_dir, "..", "..", config_path))
     with open(full_path, "r") as f:
         data = json.load(f)
     return {int(k): v for k, v in data.items()}
 
-class MixtralMoE(nn.Module):
-    """A tensor-parallel MoE implementation for Mixtral that shards each expert
-    across all ranks.
 
-    Each expert's weights are sharded across all ranks and a fused MoE
-    kernel is used for the forward pass, and finally we reduce the outputs
-    across ranks.
-    """
-
-    def __init__(self,
-                 num_experts: int,
-                 top_k: int,
-                 hidden_size: int,
-                 intermediate_size: int,
-                 params_dtype: Optional[torch.dtype] = None,
-                 quant_config: Optional[QuantizationConfig] = None,
-                 tp_size: Optional[int] = None,
-                 dp_size: Optional[int] = None,
-                 prefix: str = ""):
-        super().__init__()
-        self.hidden_size = hidden_size
-
-        # Gate always runs at half / full precision for now.
-
-        self.gate = ReplicatedLinear(hidden_size,
-                                     num_experts,
-                                     bias=False,
-                                     params_dtype=params_dtype,
-                                     quant_config=None,
-                                     prefix=f"{prefix}.gate")
-
-        self.experts = FusedMoE(num_experts=num_experts,
-                                top_k=top_k,
-                                hidden_size=hidden_size,
-                                intermediate_size=intermediate_size,
-                                params_dtype=params_dtype,
-                                reduce_results=True,
-                                renormalize=True,
-                                quant_config=quant_config,
-                                tp_size=tp_size,
-                                dp_size=dp_size,
-                                prefix=f"{prefix}.experts")
-
-    def forward_default(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        # NOTE: hidden_states can have either 1D or 2D shape.
-        orig_shape = hidden_states.shape
-        hidden_states = hidden_states.view(-1, self.hidden_size)
-        # router_logits: (num_tokens, n_experts)
-        router_logits, _ = self.gate(hidden_states)
-        self.experts(hidden_states, router_logits, is_tokenweave=True)
-        return hidden_states.view(orig_shape)
-
-    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        # NOTE: hidden_states can have either 1D or 2D shape.
-        orig_shape = hidden_states.shape
-        hidden_states = hidden_states.view(-1, self.hidden_size)
-        # router_logits: (num_tokens, n_experts)
-        router_logits, _ = self.gate(hidden_states)
-        self.experts(hidden_states, router_logits, is_tokenweave=True)
-        return hidden_states.view(orig_shape)
-
-
-class MixtralAttention(nn.Module):
+class Qwen2MLP(nn.Module):
 
     def __init__(
         self,
-        config: MixtralConfig,
         hidden_size: int,
-        num_heads: int,
-        num_kv_heads: int,
-        max_position: int = 4096 * 32,
-        rope_theta: float = 10000,
-        cache_config: Optional[CacheConfig] = None,
+        intermediate_size: int,
+        hidden_act: str,
         quant_config: Optional[QuantizationConfig] = None,
         prefix: str = "",
     ) -> None:
+        super().__init__()
+        self.gate_up_proj = MergedColumnParallelLinear(
+            hidden_size,
+            [intermediate_size] * 2,
+            bias=False,
+            quant_config=quant_config,
+            prefix=f"{prefix}.gate_up_proj",
+        )
+        self.down_proj = RowParallelLinear(
+            intermediate_size,
+            hidden_size,
+            bias=False,
+            quant_config=quant_config,
+            prefix=f"{prefix}.down_proj",
+        )
+        if hidden_act != "silu":
+            raise ValueError(f"Unsupported activation: {hidden_act}. "
+                             "Only silu is supported for now.")
+        self.act_fn = SiluAndMul()
+
+    def forward_default(self, hidden_states):
+        x, _ = self.gate_up_proj(hidden_states)
+        x = self.act_fn(x)
+        self.down_proj(x, hidden_states, is_tokenweave=True)
+        return hidden_states
+
+    def forward(self, hidden_states):
+        x, _ = self.gate_up_proj(hidden_states)
+        x = self.act_fn(x)
+        self.down_proj(x, hidden_states, is_tokenweave=True)
+        return hidden_states
+
+
+class Qwen2Attention(nn.Module):
+
+    def __init__(self,
+                 hidden_size: int,
+                 num_heads: int,
+                 num_kv_heads: int,
+                 max_position: int = 4096 * 32,
+                 rope_theta: float = 10000,
+                 cache_config: Optional[CacheConfig] = None,
+                 quant_config: Optional[QuantizationConfig] = None,
+                 rope_scaling: Optional[Tuple] = None,
+                 prefix: str = "",
+                 attn_type: str = AttentionType.DECODER) -> None:
         super().__init__()
         self.hidden_size = hidden_size
         tp_size = get_tensor_model_parallel_world_size()
@@ -158,9 +148,7 @@ class MixtralAttention(nn.Module):
             # the KV heads across multiple tensor parallel GPUs.
             assert tp_size % self.total_num_kv_heads == 0
         self.num_kv_heads = max(1, self.total_num_kv_heads // tp_size)
-        # MixtralConfig has an optional head_dim argument
-        self.head_dim = getattr(config, "head_dim",
-                                self.hidden_size // self.total_num_heads)
+        self.head_dim = hidden_size // self.total_num_heads
         self.q_size = self.num_heads * self.head_dim
         self.kv_size = self.num_kv_heads * self.head_dim
         self.scaling = self.head_dim**-0.5
@@ -171,7 +159,7 @@ class MixtralAttention(nn.Module):
             self.head_dim,
             self.total_num_heads,
             self.total_num_kv_heads,
-            bias=False,
+            bias=True,
             quant_config=quant_config,
             prefix=f"{prefix}.qkv_proj",
         )
@@ -182,12 +170,13 @@ class MixtralAttention(nn.Module):
             quant_config=quant_config,
             prefix=f"{prefix}.o_proj",
         )
+
         self.rotary_emb = get_rope(
             self.head_dim,
             rotary_dim=self.head_dim,
             max_position=max_position,
-            base=int(self.rope_theta),
-            is_neox_style=True,
+            base=self.rope_theta,
+            rope_scaling=rope_scaling,
         )
         self.attn = Attention(self.num_heads,
                               self.head_dim,
@@ -195,7 +184,8 @@ class MixtralAttention(nn.Module):
                               num_kv_heads=self.num_kv_heads,
                               cache_config=cache_config,
                               quant_config=quant_config,
-                              prefix=f"{prefix}.attn")
+                              prefix=f"{prefix}.attn",
+                              attn_type=attn_type)
 
     def forward_default(
         self,
@@ -252,12 +242,11 @@ class MixtralAttention(nn.Module):
                                 is_tokenweave=True)
         return hidden_states
 
-
-class MixtralDecoderLayer(nn.Module):
+class Qwen2DecoderLayer(nn.Module):
 
     def __init__(
         self,
-        config: MixtralConfig,
+        config: Qwen2Config,
         cache_config: Optional[CacheConfig] = None,
         quant_config: Optional[QuantizationConfig] = None,
         prefix: str = "",
@@ -265,9 +254,19 @@ class MixtralDecoderLayer(nn.Module):
         super().__init__()
         self.hidden_size = config.hidden_size
         # Requires transformers > 4.32.0
-        rope_theta = getattr(config, "rope_theta", 10000)
-        self.self_attn = MixtralAttention(
-            config=config,
+        rope_theta = getattr(config, "rope_theta", 1000000)
+        rope_scaling = getattr(config, "rope_scaling", None)
+
+        # By default, Qwen2 uses causal attention as it is a decoder-only model.
+        # You can override the HF config with `is_causal=False` to enable
+        # bidirectional attention, which is used in some embedding models
+        # (e.g. Alibaba-NLP/gte-Qwen2-7B-instruct)
+        if getattr(config, "is_causal", True):
+            attn_type = AttentionType.DECODER
+        else:
+            attn_type = AttentionType.ENCODER_ONLY
+
+        self.self_attn = Qwen2Attention(
             hidden_size=self.hidden_size,
             num_heads=config.num_attention_heads,
             max_position=config.max_position_embeddings,
@@ -275,14 +274,17 @@ class MixtralDecoderLayer(nn.Module):
             rope_theta=rope_theta,
             cache_config=cache_config,
             quant_config=quant_config,
-            prefix=f"{prefix}.self_attn")
-        self.block_sparse_moe = MixtralMoE(
-            num_experts=config.num_local_experts,
-            top_k=config.num_experts_per_tok,
-            hidden_size=config.hidden_size,
+            rope_scaling=rope_scaling,
+            prefix=f"{prefix}.self_attn",
+            attn_type=attn_type,
+        )
+        self.mlp = Qwen2MLP(
+            hidden_size=self.hidden_size,
             intermediate_size=config.intermediate_size,
+            hidden_act=config.hidden_act,
             quant_config=quant_config,
-            prefix=f"{prefix}.block_sparse_moe")
+            prefix=f"{prefix}.mlp",
+        )
         self.input_layernorm = RMSNorm(config.hidden_size,
                                        eps=config.rms_norm_eps)
         self.post_attention_layernorm = RMSNorm(config.hidden_size,
@@ -323,8 +325,7 @@ class MixtralDecoderLayer(nn.Module):
             world_size=world_size,
             offset=rank * num_tokens_per_rank * hidden_states.shape[1] * hidden_states.element_size(),
         )
-
-        self.block_sparse_moe.forward_default(hidden_states[:actual_tokens])
+        self.mlp.forward_default(hidden_states[:actual_tokens])
         next_layer_norm(
             hidden_states[rank * num_tokens_per_rank: (rank + 1) * num_tokens_per_rank], 
             residual[rank * num_tokens_per_rank: (rank + 1) * num_tokens_per_rank],
@@ -444,7 +445,7 @@ class MixtralDecoderLayer(nn.Module):
             )
         
         with torch.cuda.stream(current_stream):
-            hidden_states_1 = self.block_sparse_moe(hidden_states_1)
+            hidden_states_1 = self.mlp(hidden_states_1)
             current_stream.wait_stream(copy_stream)
 
         with torch.cuda.stream(copy_stream):
@@ -460,7 +461,7 @@ class MixtralDecoderLayer(nn.Module):
                 offset=rank * blpr_1 * hidden_states_1.shape[1] * hidden_states_1.element_size(),
             )
         with torch.cuda.stream(current_stream):
-            hidden_states_2 = self.block_sparse_moe(hidden_states_2)
+            hidden_states_2 = self.mlp(hidden_states_2)
             current_stream.wait_stream(copy_stream)        
         if layer_id == end_layer - 1:
             next_layer_norm(
@@ -476,16 +477,39 @@ class MixtralDecoderLayer(nn.Module):
         return hidden_states, residual
 
 
-@support_torch_compile
-class MixtralModel(nn.Module):
+@support_torch_compile(
+    dynamic_arg_dims={
+        "input_ids": 0,
+        # positions is of shape (3, seq_len) if mrope is enabled for qwen2-vl,
+        # otherwise (seq_len, ).
+        "positions": -1,
+        "intermediate_tensors": 0,
+        "inputs_embeds": 0,
+    })
+class Qwen2Model(nn.Module):
 
-    def __init__(self, *, vllm_config: VllmConfig, prefix: str = ""):
+    def __init__(self,
+                 *,
+                 vllm_config: VllmConfig,
+                 prefix: str = "",
+                 decoder_layer_type: type[nn.Module] = Qwen2DecoderLayer):
         super().__init__()
 
         config = vllm_config.model_config.hf_config
         cache_config = vllm_config.cache_config
         quant_config = vllm_config.quant_config
-        lora_config = vllm_config.lora_config
+
+        # TODO (@robertgshaw2): see if this can be moved out
+        if (cache_config.sliding_window is not None
+                and hasattr(config, "max_window_layers")):
+            raise ValueError("Sliding window for some but all layers is not "
+                             "supported. This model uses sliding window "
+                             "but `max_window_layers` = {} is less than "
+                             "`num_hidden_layers` = {}. Please open an issue "
+                             "to discuss this feature.".format(
+                                 config.max_window_layers,
+                                 config.num_hidden_layers,
+                             ))
 
         ## --------- TokenWeave: pq_overlap_fused --------- #
         CHUNK_SIZE = vllm_config.scheduler_config.max_num_batched_tokens + 512
@@ -498,37 +522,46 @@ class MixtralModel(nn.Module):
         self.buff = None
 
         world_size = get_tensor_model_parallel_world_size()
-        self.config_data = load_config(f"tokenweave_configs/mixtral_config_{world_size}.json")
+        self.config_data = load_config(f"tokenweave_configs/qwen2_config_{world_size}.json")
         self.MAX_CTAS_ATTN = 16
         self.MAX_CTAS_MLP = 16
         self.SPLIT_OFFSET = 0
 
         ## --------- TokenWeave: pq_overlap_fused --------- ##
-
         self.config = config
         self.quant_config = quant_config
-        lora_vocab = (lora_config.lora_extra_vocab_size *
-                      (lora_config.max_loras or 1)) if lora_config else 0
-        self.vocab_size = config.vocab_size + lora_vocab
-        self.org_vocab_size = config.vocab_size
+        self.vocab_size = config.vocab_size
 
-        self.embed_tokens = VocabParallelEmbedding(
-            self.vocab_size,
-            config.hidden_size,
-            org_num_embeddings=config.vocab_size,
-        )
+        if get_pp_group().is_first_rank or (config.tie_word_embeddings
+                                            and get_pp_group().is_last_rank):
+            self.embed_tokens = VocabParallelEmbedding(
+                config.vocab_size,
+                config.hidden_size,
+                quant_config=quant_config,
+                prefix=f"{prefix}.embed_tokens",
+            )
+        else:
+            self.embed_tokens = PPMissingLayer()
 
+        # Use the provided decoder layer type or default to Qwen2DecoderLayer
+        decoder_layer_type = decoder_layer_type or Qwen2DecoderLayer
+        
         self.start_layer, self.end_layer, self.layers = make_layers(
             config.num_hidden_layers,
-            lambda prefix: MixtralDecoderLayer(
-                config, cache_config, quant_config=quant_config, prefix=prefix
-            ),
-            prefix=f"{prefix}.layers")
+            lambda prefix: decoder_layer_type(config=config,
+                                              cache_config=cache_config,
+                                              quant_config=quant_config,
+                                              prefix=prefix),
+            prefix=f"{prefix}.layers",
+        )
 
-        self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.make_empty_intermediate_tensors = (
             make_empty_intermediate_tensors_factory(
                 ["hidden_states", "residual"], config.hidden_size))
+        if get_pp_group().is_last_rank:
+            self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        else:
+            self.norm = PPMissingLayer()
 
     def get_input_embeddings(self, input_ids: torch.Tensor, output_buffer: torch.Tensor, is_tokenweave: Optional[bool] = False, split_size: Optional[int] = None) -> torch.Tensor:
         return self.embed_tokens(input_ids, output_parallel=output_buffer, use_pytorch_all_reduce=False, is_overlap=is_tokenweave, symm_mem_hdl=self.symm_mem_hdl, split_size=split_size)
@@ -542,7 +575,7 @@ class MixtralModel(nn.Module):
     ) -> Union[torch.Tensor, IntermediateTensors]:
         rank, world_size = get_tensor_model_parallel_rank(), get_tensor_model_parallel_world_size()
         num_tokens = input_ids.shape[0] if input_ids is not None else inputs_embeds.shape[0]
-        is_tokenweave = num_tokens >= 2048
+        is_tokenweave = num_tokens >= 1024 
         tokenweave_split_size = None
         if is_tokenweave:
             # Load the tokenweave config based on the number of tokens
@@ -620,7 +653,7 @@ class MixtralModel(nn.Module):
                                             self.MAX_CTAS_MLP,
                                             )
         return hidden_states[:num_tokens]
-    
+
     def load_weights(self, weights: Iterable[Tuple[str,
                                                    torch.Tensor]]) -> Set[str]:
         stacked_params_mapping = [
@@ -628,19 +661,14 @@ class MixtralModel(nn.Module):
             ("qkv_proj", "q_proj", "q"),
             ("qkv_proj", "k_proj", "k"),
             ("qkv_proj", "v_proj", "v"),
+            ("gate_up_proj", "gate_proj", 0),
+            ("gate_up_proj", "up_proj", 1),
         ]
-
-        # Params for weights, fp8 weight scales, fp8 activation scales
-        # (param_name, weight_name, expert_id, shard_id)
-        expert_params_mapping = FusedMoE.make_expert_params_mapping(
-            ckpt_gate_proj_name="w1",
-            ckpt_down_proj_name="w2",
-            ckpt_up_proj_name="w3",
-            num_experts=self.config.num_local_experts)
-
-        params_dict = dict(self.named_parameters())
+        params_dict = dict(self.named_parameters(remove_duplicate=False))
         loaded_params: Set[str] = set()
         for name, loaded_weight in weights:
+            if "rotary_emb.inv_freq" in name:
+                continue
             if (self.quant_config is not None and
                 (scale_name := self.quant_config.get_cache_scale(name))):
                 # Loading kv cache quantization scales
@@ -652,115 +680,78 @@ class MixtralModel(nn.Module):
                 weight_loader(param, loaded_weight)
                 loaded_params.add(scale_name)
                 continue
-
             for (param_name, weight_name, shard_id) in stacked_params_mapping:
                 if weight_name not in name:
                     continue
                 name = name.replace(weight_name, param_name)
                 # Skip loading extra bias for GPTQ models.
-                if ((name.endswith(".bias") or name.endswith("_bias"))
-                        and name not in params_dict):
+                if name.endswith(".bias") and name not in params_dict:
                     continue
-                # Skip layers on other devices.
                 if is_pp_missing_parameter(name, self):
                     continue
-                if name.endswith("scale"):
-                    # Remapping the name of FP8 kv-scale.
-                    name = maybe_remap_kv_scale_name(name, params_dict)
-                    if name is None:
-                        continue
                 param = params_dict[name]
                 weight_loader = param.weight_loader
                 weight_loader(param, loaded_weight, shard_id)
                 break
             else:
-                for mapping in expert_params_mapping:
-                    param_name, weight_name, expert_id, shard_id = mapping
-                    if weight_name not in name:
-                        continue
-                    name = name.replace(weight_name, param_name)
-                    # Skip layers on other devices.
-                    if is_pp_missing_parameter(name, self):
-                        continue
-                    if ((name.endswith(".bias") or name.endswith("_bias"))
-                            and name not in params_dict):
-                        continue
-                    param = params_dict[name]
-                    weight_loader = param.weight_loader
-                    weight_loader(param,
-                                  loaded_weight,
-                                  name,
-                                  shard_id=shard_id,
-                                  expert_id=expert_id)
-                    break
-                else:
-                    # Skip loading extra bias for GPTQ models.
-                    if ((name.endswith(".bias") or name.endswith("_bias"))
-                            and name not in params_dict):
-                        continue
-                    # Skip layers on other devices.
-                    if is_pp_missing_parameter(name, self):
-                        continue
-                    # Remapping the name of FP8 kv-scale.
-                    name = maybe_remap_kv_scale_name(name, params_dict)
-                    if name is None:
-                        continue
-
-                    param = params_dict[name]
-                    weight_loader = getattr(param, "weight_loader",
-                                            default_weight_loader)
-                    weight_loader(param, loaded_weight)
+                # Skip loading extra bias for GPTQ models.
+                if name.endswith(".bias") and name not in params_dict:
+                    continue
+                # Remapping the name of FP8 kv-scale.
+                name = maybe_remap_kv_scale_name(name, params_dict)
+                if name is None:
+                    continue
+                if is_pp_missing_parameter(name, self):
+                    continue
+                param = params_dict[name]
+                weight_loader = getattr(param, "weight_loader",
+                                        default_weight_loader)
+                weight_loader(param, loaded_weight)
             loaded_params.add(name)
         return loaded_params
 
 
-class MixtralForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
-    fall_back_to_pt_during_load = False
-
+class Qwen2ForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
     packed_modules_mapping = {
         "qkv_proj": [
             "q_proj",
             "k_proj",
             "v_proj",
         ],
+        "gate_up_proj": [
+            "gate_proj",
+            "up_proj",
+        ],
     }
-
-    # LoRA specific attributes
-    embedding_modules = {
-        "embed_tokens": "input_embeddings",
-        "lm_head": "output_embeddings",
-    }
-    embedding_padding_modules = ["lm_head"]
 
     def __init__(self, *, vllm_config: VllmConfig, prefix: str = ""):
         super().__init__()
         config = vllm_config.model_config.hf_config
         quant_config = vllm_config.quant_config
         lora_config = vllm_config.lora_config
+
         self.config = config
         self.lora_config = lora_config
-        self.quant_config = quant_config
 
-        self.model = MixtralModel(vllm_config=vllm_config,
-                                  prefix=maybe_prefix(prefix, "model"))
-        self.unpadded_vocab_size = config.vocab_size
-        if lora_config:
-            self.unpadded_vocab_size += lora_config.lora_extra_vocab_size
-        self.lm_head = ParallelLMHead(
-            self.unpadded_vocab_size,
-            config.hidden_size,
-            org_num_embeddings=config.vocab_size,
-            padding_size=DEFAULT_VOCAB_PADDING_SIZE
-            # We need bigger padding if using lora for kernel
-            # compatibility
-            if not lora_config else lora_config.lora_vocab_padding_size,
-            quant_config=quant_config,
-        )
-        if self.config.tie_word_embeddings:
-            self.lm_head.weight = self.model.embed_tokens.weight
-        self.logits_processor = LogitsProcessor(self.unpadded_vocab_size,
-                                                config.vocab_size)
+        self.quant_config = quant_config
+        self.model = Qwen2Model(vllm_config=vllm_config,
+                                prefix=maybe_prefix(prefix, "model"))
+
+        if get_pp_group().is_last_rank:
+            if config.tie_word_embeddings:
+                self.lm_head = self.model.embed_tokens
+            else:
+                self.lm_head = ParallelLMHead(config.vocab_size,
+                                              config.hidden_size,
+                                              quant_config=quant_config,
+                                              prefix=maybe_prefix(
+                                                  prefix, "lm_head"))
+        else:
+            self.lm_head = PPMissingLayer()
+
+        self.logits_processor = LogitsProcessor(config.vocab_size)
         self.sampler = get_sampler()
+
         self.make_empty_intermediate_tensors = (
             self.model.make_empty_intermediate_tensors)
 
@@ -789,7 +780,7 @@ class MixtralForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
 
     def sample(
         self,
-        logits: Optional[torch.Tensor],
+        logits: torch.Tensor,
         sampling_metadata: SamplingMetadata,
     ) -> Optional[SamplerOutput]:
         next_tokens = self.sampler(logits, sampling_metadata)
@@ -797,5 +788,75 @@ class MixtralForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
 
     def load_weights(self, weights: Iterable[Tuple[str,
                                                    torch.Tensor]]) -> Set[str]:
-        loader = AutoWeightsLoader(self, skip_prefixes=["rotary_emb.inv_freq"])
+        loader = AutoWeightsLoader(
+            self,
+            skip_prefixes=(["lm_head."]
+                           if self.config.tie_word_embeddings else None),
+        )
         return loader.load_weights(weights)
+
+
+class Qwen2EmbeddingModel(nn.Module, SupportsLoRA, SupportsPP):
+    packed_modules_mapping = {
+        "qkv_proj": [
+            "q_proj",
+            "k_proj",
+            "v_proj",
+        ],
+        "gate_up_proj": [
+            "gate_proj",
+            "up_proj",
+        ],
+    }
+
+    hf_to_vllm_mapper = WeightsMapper(orig_to_new_prefix={"model.": ""})
+
+    def __init__(self, *, vllm_config: VllmConfig, prefix: str = ""):
+        super().__init__()
+        config = vllm_config.model_config.hf_config
+        quant_config = vllm_config.quant_config
+        lora_config = vllm_config.lora_config
+        pooler_config = vllm_config.model_config.pooler_config
+
+        self.config = config
+        self.lora_config = lora_config
+
+        self.quant_config = quant_config
+        self.model = Qwen2Model(vllm_config=vllm_config,
+                                prefix=maybe_prefix(prefix, "model"))
+
+        # TODO: Replace this model class with as_embedding_model(
+        # Qwen2ForCausalLM) after changing the default pooling method
+        if pooler_config.pooling_type is None:
+            logger.warning(
+                "This embedding model will default to last-token pooling in "
+                "an upcoming version. To avoid breaking changes, you should "
+                "pass `--override-pooler-config '{\"pooling_type\": \"MEAN\"}'`"
+                " explicitly.")
+
+        self._pooler = Pooler.from_config_with_defaults(
+            pooler_config,
+            pooling_type=PoolingType.MEAN,
+            normalize=True,
+            softmax=False)
+
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        positions: torch.Tensor,
+        intermediate_tensors: Optional[IntermediateTensors] = None,
+    ) -> torch.Tensor:
+        return self.model(input_ids, positions, intermediate_tensors)
+
+    def pooler(
+        self,
+        hidden_states: torch.Tensor,
+        pooling_metadata: PoolingMetadata,
+    ) -> Optional[PoolerOutput]:
+        return self._pooler(hidden_states, pooling_metadata)
+
+    def load_weights(self, weights: Iterable[Tuple[str, torch.Tensor]]):
+        weights = self.hf_to_vllm_mapper.apply(weights)
+        weights = ((name, data) for name, data in weights
+                   if not name.startswith("lm_head."))
+        self.model.load_weights(weights)

@@ -1,0 +1,762 @@
+W0714 07:05:28.631000 11509 site-packages/torch/distributed/run.py:792] 
+W0714 07:05:28.631000 11509 site-packages/torch/distributed/run.py:792] *****************************************
+W0714 07:05:28.631000 11509 site-packages/torch/distributed/run.py:792] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+W0714 07:05:28.631000 11509 site-packages/torch/distributed/run.py:792] *****************************************
+INFO 07-14 07:05:50 [__init__.py:239] Automatically detected platform cuda.
+INFO 07-14 07:05:50 [__init__.py:239] Automatically detected platform cuda.
+INFO 07-14 07:05:50 [__init__.py:239] Automatically detected platform cuda.
+INFO 07-14 07:05:50 [__init__.py:239] Automatically detected platform cuda.
+INFO 07-14 07:05:50 [__init__.py:239] Automatically detected platform cuda.
+INFO 07-14 07:05:51 [__init__.py:239] Automatically detected platform cuda.
+INFO 07-14 07:05:51 [__init__.py:239] Automatically detected platform cuda.
+INFO 07-14 07:05:51 [__init__.py:239] Automatically detected platform cuda.
+
+=== Benchmark Results ===
+BL                       : 64
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 1048576
+CTAs                     : 2
+  correctness              : True
+  pytorch_dist_ar_us       : 34.27 µs
+  pytorch_dist_rs_us       : 27.55 µs
+  pytorch_dist_ag_us       : 26.91 µs
+  multimem_ar_us           : 17.47 µs
+  multimem_rs_us           : 17.22 µs
+  multimem_ag_us           : 12.86 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 128
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 2097152
+CTAs                     : 2
+  correctness              : True
+  pytorch_dist_ar_us       : 45.92 µs
+  pytorch_dist_rs_us       : 33.50 µs
+  pytorch_dist_ag_us       : 31.87 µs
+  multimem_ar_us           : 23.30 µs
+  multimem_rs_us           : 22.62 µs
+  multimem_ag_us           : 15.49 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 256
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 4194304
+CTAs                     : 2
+  correctness              : True
+  pytorch_dist_ar_us       : 59.71 µs
+  pytorch_dist_rs_us       : 49.18 µs
+  pytorch_dist_ag_us       : 42.85 µs
+  multimem_ar_us           : 35.10 µs
+  multimem_rs_us           : 34.08 µs
+  multimem_ag_us           : 21.18 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 512
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 8388608
+CTAs                     : 2
+  correctness              : True
+  pytorch_dist_ar_us       : 84.83 µs
+  pytorch_dist_rs_us       : 56.42 µs
+  pytorch_dist_ag_us       : 52.19 µs
+  multimem_ar_us           : 59.49 µs
+  multimem_rs_us           : 57.09 µs
+  multimem_ag_us           : 33.09 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 1024
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 16777216
+CTAs                     : 2
+  correctness              : True
+  pytorch_dist_ar_us       : 124.45 µs
+  pytorch_dist_rs_us       : 76.61 µs
+  pytorch_dist_ag_us       : 73.82 µs
+  multimem_ar_us           : 107.94 µs
+  multimem_rs_us           : 103.14 µs
+  multimem_ag_us           : 55.20 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 2048
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 33554432
+CTAs                     : 2
+  correctness              : True
+  pytorch_dist_ar_us       : 214.18 µs
+  pytorch_dist_rs_us       : 116.77 µs
+  pytorch_dist_ag_us       : 118.98 µs
+  multimem_ar_us           : 202.94 µs
+  multimem_rs_us           : 190.98 µs
+  multimem_ag_us           : 100.29 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 4096
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 67108864
+CTAs                     : 2
+  correctness              : True
+  pytorch_dist_ar_us       : 363.17 µs
+  pytorch_dist_rs_us       : 201.76 µs
+  pytorch_dist_ag_us       : 203.81 µs
+  multimem_ar_us           : 392.45 µs
+  multimem_rs_us           : 367.55 µs
+  multimem_ag_us           : 189.79 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 8192
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 134217728
+CTAs                     : 2
+  correctness              : True
+  pytorch_dist_ar_us       : 694.69 µs
+  pytorch_dist_rs_us       : 379.68 µs
+  pytorch_dist_ag_us       : 377.76 µs
+  multimem_ar_us           : 770.91 µs
+  multimem_rs_us           : 718.82 µs
+  multimem_ag_us           : 371.87 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 16384
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 268435456
+CTAs                     : 2
+  correctness              : True
+  pytorch_dist_ar_us       : 1,353.57 µs
+  pytorch_dist_rs_us       : 720.45 µs
+  pytorch_dist_ag_us       : 716.54 µs
+  multimem_ar_us           : 1,528.32 µs
+  multimem_rs_us           : 1,424.13 µs
+  multimem_ag_us           : 732.96 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 32768
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 536870912
+CTAs                     : 2
+  correctness              : True
+  pytorch_dist_ar_us       : 2,638.56 µs
+  pytorch_dist_rs_us       : 1,397.89 µs
+  pytorch_dist_ag_us       : 1,386.78 µs
+  multimem_ar_us           : 3,044.64 µs
+  multimem_rs_us           : 2,838.88 µs
+  multimem_ag_us           : 1,453.89 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 64
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 1048576
+CTAs                     : 4
+  correctness              : True
+  pytorch_dist_ar_us       : 34.21 µs
+  pytorch_dist_rs_us       : 27.52 µs
+  pytorch_dist_ag_us       : 26.59 µs
+  multimem_ar_us           : 15.26 µs
+  multimem_rs_us           : 15.10 µs
+  multimem_ag_us           : 12.61 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 128
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 2097152
+CTAs                     : 4
+  correctness              : True
+  pytorch_dist_ar_us       : 45.70 µs
+  pytorch_dist_rs_us       : 33.22 µs
+  pytorch_dist_ag_us       : 31.55 µs
+  multimem_ar_us           : 19.46 µs
+  multimem_rs_us           : 18.14 µs
+  multimem_ag_us           : 15.52 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 256
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 4194304
+CTAs                     : 4
+  correctness              : True
+  pytorch_dist_ar_us       : 59.58 µs
+  pytorch_dist_rs_us       : 48.99 µs
+  pytorch_dist_ag_us       : 42.62 µs
+  multimem_ar_us           : 27.30 µs
+  multimem_rs_us           : 24.80 µs
+  multimem_ag_us           : 21.12 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 512
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 8388608
+CTAs                     : 4
+  correctness              : True
+  pytorch_dist_ar_us       : 84.86 µs
+  pytorch_dist_rs_us       : 56.16 µs
+  pytorch_dist_ag_us       : 52.13 µs
+  multimem_ar_us           : 43.30 µs
+  multimem_rs_us           : 37.76 µs
+  multimem_ag_us           : 32.64 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 1024
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 16777216
+CTAs                     : 4
+  correctness              : True
+  pytorch_dist_ar_us       : 124.03 µs
+  pytorch_dist_rs_us       : 76.26 µs
+  pytorch_dist_ag_us       : 73.86 µs
+  multimem_ar_us           : 75.46 µs
+  multimem_rs_us           : 63.78 µs
+  multimem_ag_us           : 55.17 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 2048
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 33554432
+CTAs                     : 4
+  correctness              : True
+  pytorch_dist_ar_us       : 216.22 µs
+  pytorch_dist_rs_us       : 117.06 µs
+  pytorch_dist_ag_us       : 118.85 µs
+  multimem_ar_us           : 138.27 µs
+  multimem_rs_us           : 113.92 µs
+  multimem_ag_us           : 100.48 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 4096
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 67108864
+CTAs                     : 4
+  correctness              : True
+  pytorch_dist_ar_us       : 362.91 µs
+  pytorch_dist_rs_us       : 201.50 µs
+  pytorch_dist_ag_us       : 203.81 µs
+  multimem_ar_us           : 264.61 µs
+  multimem_rs_us           : 213.73 µs
+  multimem_ag_us           : 189.66 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 8192
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 134217728
+CTAs                     : 4
+  correctness              : True
+  pytorch_dist_ar_us       : 693.70 µs
+  pytorch_dist_rs_us       : 379.04 µs
+  pytorch_dist_ag_us       : 376.29 µs
+  multimem_ar_us           : 516.96 µs
+  multimem_rs_us           : 412.16 µs
+  multimem_ag_us           : 371.17 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 16384
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 268435456
+CTAs                     : 4
+  correctness              : True
+  pytorch_dist_ar_us       : 1,346.75 µs
+  pytorch_dist_rs_us       : 718.66 µs
+  pytorch_dist_ag_us       : 714.30 µs
+  multimem_ar_us           : 1,017.63 µs
+  multimem_rs_us           : 806.59 µs
+  multimem_ag_us           : 730.59 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 32768
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 536870912
+CTAs                     : 4
+  correctness              : True
+  pytorch_dist_ar_us       : 2,639.49 µs
+  pytorch_dist_rs_us       : 1,397.98 µs
+  pytorch_dist_ag_us       : 1,385.98 µs
+  multimem_ar_us           : 2,022.66 µs
+  multimem_rs_us           : 1,593.34 µs
+  multimem_ag_us           : 1,449.09 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 64
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 1048576
+CTAs                     : 8
+  correctness              : True
+  pytorch_dist_ar_us       : 34.34 µs
+  pytorch_dist_rs_us       : 27.52 µs
+  pytorch_dist_ag_us       : 26.78 µs
+  multimem_ar_us           : 15.33 µs
+  multimem_rs_us           : 15.26 µs
+  multimem_ag_us           : 12.80 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 128
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 2097152
+CTAs                     : 8
+  correctness              : True
+  pytorch_dist_ar_us       : 45.60 µs
+  pytorch_dist_rs_us       : 33.09 µs
+  pytorch_dist_ag_us       : 31.78 µs
+  multimem_ar_us           : 19.36 µs
+  multimem_rs_us           : 17.82 µs
+  multimem_ag_us           : 15.39 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 256
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 4194304
+CTAs                     : 8
+  correctness              : True
+  pytorch_dist_ar_us       : 59.49 µs
+  pytorch_dist_rs_us       : 48.90 µs
+  pytorch_dist_ag_us       : 42.50 µs
+  multimem_ar_us           : 26.91 µs
+  multimem_rs_us           : 23.49 µs
+  multimem_ag_us           : 21.15 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 512
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 8388608
+CTAs                     : 8
+  correctness              : True
+  pytorch_dist_ar_us       : 85.25 µs
+  pytorch_dist_rs_us       : 56.06 µs
+  pytorch_dist_ag_us       : 52.16 µs
+  multimem_ar_us           : 42.59 µs
+  multimem_rs_us           : 35.26 µs
+  multimem_ag_us           : 32.48 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 1024
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 16777216
+CTAs                     : 8
+  correctness              : True
+  pytorch_dist_ar_us       : 124.19 µs
+  pytorch_dist_rs_us       : 76.61 µs
+  pytorch_dist_ag_us       : 74.27 µs
+  multimem_ar_us           : 73.34 µs
+  multimem_rs_us           : 59.17 µs
+  multimem_ag_us           : 55.17 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 2048
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 33554432
+CTAs                     : 8
+  correctness              : True
+  pytorch_dist_ar_us       : 216.13 µs
+  pytorch_dist_rs_us       : 116.61 µs
+  pytorch_dist_ag_us       : 118.75 µs
+  multimem_ar_us           : 135.55 µs
+  multimem_rs_us           : 106.34 µs
+  multimem_ag_us           : 100.45 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 4096
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 67108864
+CTAs                     : 8
+  correctness              : True
+  pytorch_dist_ar_us       : 363.74 µs
+  pytorch_dist_rs_us       : 201.34 µs
+  pytorch_dist_ag_us       : 203.58 µs
+  multimem_ar_us           : 259.26 µs
+  multimem_rs_us           : 200.58 µs
+  multimem_ag_us           : 189.66 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 8192
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 134217728
+CTAs                     : 8
+  correctness              : True
+  pytorch_dist_ar_us       : 692.77 µs
+  pytorch_dist_rs_us       : 379.20 µs
+  pytorch_dist_ag_us       : 377.86 µs
+  multimem_ar_us           : 504.93 µs
+  multimem_rs_us           : 389.09 µs
+  multimem_ag_us           : 369.98 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 16384
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 268435456
+CTAs                     : 8
+  correctness              : True
+  pytorch_dist_ar_us       : 1,351.39 µs
+  pytorch_dist_rs_us       : 720.80 µs
+  pytorch_dist_ag_us       : 717.86 µs
+  multimem_ar_us           : 995.14 µs
+  multimem_rs_us           : 766.08 µs
+  multimem_ag_us           : 728.96 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 32768
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 536870912
+CTAs                     : 8
+  correctness              : True
+  pytorch_dist_ar_us       : 2,639.81 µs
+  pytorch_dist_rs_us       : 1,399.01 µs
+  pytorch_dist_ag_us       : 1,387.87 µs
+  multimem_ar_us           : 1,964.74 µs
+  multimem_rs_us           : 1,505.86 µs
+  multimem_ag_us           : 1,446.62 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 64
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 1048576
+CTAs                     : 16
+  correctness              : True
+  pytorch_dist_ar_us       : 34.34 µs
+  pytorch_dist_rs_us       : 27.62 µs
+  pytorch_dist_ag_us       : 26.78 µs
+  multimem_ar_us           : 15.33 µs
+  multimem_rs_us           : 15.23 µs
+  multimem_ag_us           : 12.74 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 128
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 2097152
+CTAs                     : 16
+  correctness              : True
+  pytorch_dist_ar_us       : 45.95 µs
+  pytorch_dist_rs_us       : 33.44 µs
+  pytorch_dist_ag_us       : 32.03 µs
+  multimem_ar_us           : 19.39 µs
+  multimem_rs_us           : 17.60 µs
+  multimem_ag_us           : 15.55 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 256
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 4194304
+CTAs                     : 16
+  correctness              : True
+  pytorch_dist_ar_us       : 60.10 µs
+  pytorch_dist_rs_us       : 49.28 µs
+  pytorch_dist_ag_us       : 43.10 µs
+  multimem_ar_us           : 28.26 µs
+  multimem_rs_us           : 23.42 µs
+  multimem_ag_us           : 21.22 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 512
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 8388608
+CTAs                     : 16
+  correctness              : True
+  pytorch_dist_ar_us       : 85.25 µs
+  pytorch_dist_rs_us       : 56.32 µs
+  pytorch_dist_ag_us       : 52.45 µs
+  multimem_ar_us           : 43.90 µs
+  multimem_rs_us           : 35.10 µs
+  multimem_ag_us           : 32.93 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 1024
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 16777216
+CTAs                     : 16
+  correctness              : True
+  pytorch_dist_ar_us       : 124.51 µs
+  pytorch_dist_rs_us       : 77.06 µs
+  pytorch_dist_ag_us       : 73.89 µs
+  multimem_ar_us           : 74.40 µs
+  multimem_rs_us           : 58.59 µs
+  multimem_ag_us           : 55.26 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 2048
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 33554432
+CTAs                     : 16
+  correctness              : True
+  pytorch_dist_ar_us       : 216.67 µs
+  pytorch_dist_rs_us       : 117.22 µs
+  pytorch_dist_ag_us       : 118.98 µs
+  multimem_ar_us           : 135.39 µs
+  multimem_rs_us           : 106.34 µs
+  multimem_ag_us           : 100.61 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 4096
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 67108864
+CTAs                     : 16
+  correctness              : True
+  pytorch_dist_ar_us       : 362.40 µs
+  pytorch_dist_rs_us       : 202.46 µs
+  pytorch_dist_ag_us       : 203.62 µs
+  multimem_ar_us           : 257.12 µs
+  multimem_rs_us           : 198.59 µs
+  multimem_ag_us           : 189.73 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 8192
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 134217728
+CTAs                     : 16
+  correctness              : True
+  pytorch_dist_ar_us       : 692.70 µs
+  pytorch_dist_rs_us       : 378.27 µs
+  pytorch_dist_ag_us       : 376.96 µs
+  multimem_ar_us           : 500.61 µs
+  multimem_rs_us           : 383.74 µs
+  multimem_ag_us           : 370.27 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 16384
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 268435456
+CTAs                     : 16
+  correctness              : True
+  pytorch_dist_ar_us       : 1,347.04 µs
+  pytorch_dist_rs_us       : 719.49 µs
+  pytorch_dist_ag_us       : 714.82 µs
+  multimem_ar_us           : 988.22 µs
+  multimem_rs_us           : 754.21 µs
+  multimem_ag_us           : 728.93 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 32768
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 536870912
+CTAs                     : 16
+  correctness              : True
+  pytorch_dist_ar_us       : 2,638.40 µs
+  pytorch_dist_rs_us       : 1,398.24 µs
+  pytorch_dist_ag_us       : 1,385.66 µs
+  multimem_ar_us           : 1,958.14 µs
+  multimem_rs_us           : 1,491.65 µs
+  multimem_ag_us           : 1,445.95 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 64
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 1048576
+CTAs                     : 32
+  correctness              : True
+  pytorch_dist_ar_us       : 34.27 µs
+  pytorch_dist_rs_us       : 27.68 µs
+  pytorch_dist_ag_us       : 26.88 µs
+  multimem_ar_us           : 15.10 µs
+  multimem_rs_us           : 15.01 µs
+  multimem_ag_us           : 12.74 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 128
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 2097152
+CTAs                     : 32
+  correctness              : True
+  pytorch_dist_ar_us       : 45.57 µs
+  pytorch_dist_rs_us       : 33.09 µs
+  pytorch_dist_ag_us       : 31.74 µs
+  multimem_ar_us           : 19.52 µs
+  multimem_rs_us           : 17.54 µs
+  multimem_ag_us           : 15.52 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 256
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 4194304
+CTAs                     : 32
+  correctness              : True
+  pytorch_dist_ar_us       : 59.30 µs
+  pytorch_dist_rs_us       : 48.77 µs
+  pytorch_dist_ag_us       : 42.56 µs
+  multimem_ar_us           : 31.33 µs
+  multimem_rs_us           : 23.33 µs
+  multimem_ag_us           : 21.02 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 512
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 8388608
+CTAs                     : 32
+  correctness              : True
+  pytorch_dist_ar_us       : 84.96 µs
+  pytorch_dist_rs_us       : 56.06 µs
+  pytorch_dist_ag_us       : 52.19 µs
+  multimem_ar_us           : 47.87 µs
+  multimem_rs_us           : 34.91 µs
+  multimem_ag_us           : 32.77 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 1024
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 16777216
+CTAs                     : 32
+  correctness              : True
+  pytorch_dist_ar_us       : 124.42 µs
+  pytorch_dist_rs_us       : 76.61 µs
+  pytorch_dist_ag_us       : 73.92 µs
+  multimem_ar_us           : 78.34 µs
+  multimem_rs_us           : 58.30 µs
+  multimem_ag_us           : 55.33 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 2048
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 33554432
+CTAs                     : 32
+  correctness              : True
+  pytorch_dist_ar_us       : 213.12 µs
+  pytorch_dist_rs_us       : 116.74 µs
+  pytorch_dist_ag_us       : 118.98 µs
+  multimem_ar_us           : 140.10 µs
+  multimem_rs_us           : 104.51 µs
+  multimem_ag_us           : 100.70 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 4096
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 67108864
+CTAs                     : 32
+  correctness              : True
+  pytorch_dist_ar_us       : 363.20 µs
+  pytorch_dist_rs_us       : 202.05 µs
+  pytorch_dist_ag_us       : 203.65 µs
+  multimem_ar_us           : 261.50 µs
+  multimem_rs_us           : 197.73 µs
+  multimem_ag_us           : 189.66 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 8192
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 134217728
+CTAs                     : 32
+  correctness              : True
+  pytorch_dist_ar_us       : 695.94 µs
+  pytorch_dist_rs_us       : 379.58 µs
+  pytorch_dist_ag_us       : 377.18 µs
+  multimem_ar_us           : 505.92 µs
+  multimem_rs_us           : 381.86 µs
+  multimem_ag_us           : 369.79 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 16384
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 268435456
+CTAs                     : 32
+  correctness              : True
+  pytorch_dist_ar_us       : 1,355.81 µs
+  pytorch_dist_rs_us       : 720.74 µs
+  pytorch_dist_ag_us       : 717.28 µs
+  multimem_ar_us           : 996.64 µs
+  multimem_rs_us           : 749.34 µs
+  multimem_ag_us           : 728.19 µs
+==========================
+
+=== Benchmark Results ===
+BL                       : 32768
+Hidden Size              : 8192
+Data Type                : torch.bfloat16
+Message Size (bytes)     : 536870912
+CTAs                     : 32
+  correctness              : True
+  pytorch_dist_ar_us       : 2,638.40 µs
+  pytorch_dist_rs_us       : 1,398.50 µs
+  pytorch_dist_ag_us       : 1,387.20 µs
+  multimem_ar_us           : 1,967.49 µs
+  multimem_rs_us           : 1,485.47 µs
+  multimem_ag_us           : 1,445.12 µs
+==========================

@@ -1,6 +1,6 @@
 #!/bin/bash
-nvidia-smi -pm ENABLED
-nvidia-smi -lgc tdp
+# nvidia-smi -pm ENABLED
+# nvidia-smi -lgc tdp
 RESULTS_DIR=$1
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 script_name="$SCRIPT_DIR/bench.py"

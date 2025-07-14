@@ -38,7 +38,10 @@ To ease the setup, we recommend using either of these two Docker images:
 - `pytorch/pytorch:2.6.0-cuda12.4-cudnn9-devel` or 
 - `vllm/vllm-openai:v0.8.5`
 ```bash
-apt-get update; apt-get upgrade -y; apt-get install kmod git build-essential tmux -y   
+sudo apt-get update
+sudo apt-get upgrade -y
+sudo apt-get install kmod git build-essential tmux -y   
+
 git clone https://github.com/microsoft/tokenweave.git
 cd tokenweave
 # Install miniconda; skip if already installed
