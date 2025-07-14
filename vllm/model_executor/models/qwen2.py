@@ -23,10 +23,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Inference-only Qwen2 model compatible with HuggingFace weights."""
-from typing import Iterable, Optional, Set, Tuple, Union
-
+from typing import Iterable, Optional, Set, Tuple, Union, Any
+import os
 import torch
 from torch import nn
+import torch.distributed._symmetric_memory as symm_mem
 from transformers import Qwen2Config
 
 from vllm.attention import Attention, AttentionType
@@ -53,7 +54,8 @@ from vllm.model_executor.model_loader.weight_utils import (
 from vllm.model_executor.pooling_metadata import PoolingMetadata
 from vllm.model_executor.sampling_metadata import SamplingMetadata
 from vllm.sequence import IntermediateTensors, PoolerOutput
-
+from vllm.distributed.triton_comm.triton_comm import (
+    multimem_all_reduce, multimem_reduce_scatter, multimem_all_gather, multimem_all_gather_async)
 from .interfaces import SupportsLoRA, SupportsPP
 from .utils import (AutoWeightsLoader, PPMissingLayer, WeightsMapper,
                     is_pp_missing_parameter,
@@ -235,11 +237,16 @@ class Qwen2DecoderLayer(nn.Module):
         positions: torch.Tensor,
         hidden_states: torch.Tensor,
         residual: Optional[torch.Tensor],
+        symm_mem_hdl: Any,
+        layer_id: int,
+        MAX_CTAS_ATTN: int,
+        MAX_CTAS_MLP: int,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # Self Attention
         if residual is None:
-            residual = hidden_states
-            hidden_states = self.input_layernorm(hidden_states)
+            residual = torch.empty_like(hidden_states)
+        if layer_id == 0: # First layer
+            hidden_states = self.input_layernorm(hidden_states, out=residual)
         else:
             hidden_states, residual = self.input_layernorm(
                 hidden_states, residual)
@@ -247,13 +254,13 @@ class Qwen2DecoderLayer(nn.Module):
             positions=positions,
             hidden_states=hidden_states,
         )
-        # pytorch_all_reduce(hidden_states)
+        multimem_all_reduce(hidden_states, symm_mem_hdl, 0, MAX_CTAS=MAX_CTAS_ATTN)
 
         # Fully Connected
         hidden_states, residual = self.post_attention_layernorm(
             hidden_states, residual)
         hidden_states = self.mlp(hidden_states)
-        # pytorch_all_reduce(hidden_states)
+        multimem_all_reduce(hidden_states, symm_mem_hdl, 0, MAX_CTAS=MAX_CTAS_MLP)
         return hidden_states, residual
 
 
@@ -291,6 +298,31 @@ class Qwen2Model(nn.Module):
                                  config.num_hidden_layers,
                              ))
 
+        ## --------- TokenWeave: pq_baseline_multimem --------- #
+        CHUNK_SIZE = vllm_config.scheduler_config.max_num_batched_tokens + 512
+        self.staging_buffer = symm_mem.empty((CHUNK_SIZE, config.hidden_size),
+                                          dtype=vllm_config.model_config.dtype,
+                                          device="cuda")
+        self.symm_mem_hdl = symm_mem.rendezvous(self.staging_buffer, get_device_group())
+        self.current_stream = torch.cuda.current_stream()
+        self.copy_stream = torch.cuda.Stream(priority=-1)
+        self.buff = None
+
+        try:
+            self.MAX_CTAS_ATTN = int(os.getenv("MAX_CTAS_ATTN", "8"))
+        except ValueError:
+            self.MAX_CTAS_ATTN = 8
+
+        try:
+            self.MAX_CTAS_MLP = int(os.getenv("MAX_CTAS_MLP", "8"))
+        except ValueError:
+            self.MAX_CTAS_MLP = 8
+
+        try:
+            self.SPLIT_OFFSET = int(os.getenv("SPLIT_OFFSET", "0"))
+        except ValueError:
+            self.SPLIT_OFFSET = 0
+        ## --------- TokenWeave: pq_baseline_multimem --------- ##
         self.config = config
         self.quant_config = quant_config
         self.vocab_size = config.vocab_size
@@ -326,8 +358,8 @@ class Qwen2Model(nn.Module):
         else:
             self.norm = PPMissingLayer()
 
-    def get_input_embeddings(self, input_ids: torch.Tensor) -> torch.Tensor:
-        return self.embed_tokens(input_ids, use_pytorch_all_reduce=True)
+    def get_input_embeddings(self, input_ids: torch.Tensor, output_buffer: torch.Tensor) -> torch.Tensor:
+        return self.embed_tokens(input_ids, output_parallel=output_buffer, use_pytorch_all_reduce=False, symm_mem_hdl=self.symm_mem_hdl)
 
     def forward(
         self,
@@ -338,20 +370,26 @@ class Qwen2Model(nn.Module):
     ) -> Union[torch.Tensor, IntermediateTensors]:
         if get_pp_group().is_first_rank:
             if inputs_embeds is not None:
+                self.buff = self.staging_buffer[:inputs_embeds.shape[0]]
                 hidden_states = inputs_embeds
             else:
-                hidden_states = self.get_input_embeddings(input_ids)
+                self.buff = self.staging_buffer[:input_ids.shape[0]]
+                hidden_states = self.get_input_embeddings(input_ids, self.buff)
             residual = None
         else:
             assert intermediate_tensors is not None
             hidden_states = intermediate_tensors["hidden_states"]
             residual = intermediate_tensors["residual"]
-        for layer in self.layers[self.start_layer:self.end_layer]:
-            hidden_states, residual = layer(
-                positions,
-                hidden_states,
-                residual,
-            )
+        for layer_id in range(self.start_layer, self.end_layer):
+            layer = self.layers[layer_id]
+            hidden_states, residual = layer(positions, 
+                                            hidden_states, 
+                                            residual, 
+                                            self.symm_mem_hdl, 
+                                            layer_id,
+                                            self.MAX_CTAS_ATTN,
+                                            self.MAX_CTAS_MLP)
+
         if not get_pp_group().is_last_rank:
             return IntermediateTensors({
                 "hidden_states": hidden_states,

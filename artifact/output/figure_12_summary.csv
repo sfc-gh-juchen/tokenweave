@@ -38,3 +38,4 @@ Llama-3.3-70B-Instruct,4,random,2048,128,overlap_fused,6.20,13491.83,793.64,2048
 Qwen2.5-72B-Instruct,8,random,2048,128,no_ar,10.79,23474.17,1380.83,2048000,128000
 Qwen2.5-72B-Instruct,8,random,2048,128,baseline_multimem,8.95,19468.65,1145.21,2048000,128000
 Qwen2.5-72B-Instruct,8,random,2048,128,overlap_fused,10.41,22649.83,1332.34,2048000,128000
+Qwen2.5-72B-Instruct,4,random,2048,128,no_ar,6.26,13630.64,801.80,2048000,128000
