@@ -1,0 +1,9 @@
+model,experiment,baseline_multimem,no_ar,overlap_fused
+Llama-3.3-70B-Instruct,"(512, 128)",11351.03,12785.88,12386.54
+Llama-3.3-70B-Instruct,"(1024, 128)",12510.95,14122.27,13055.53
+Llama-3.3-70B-Instruct,"(2048, 128)",12508.41,14131.41,13491.83
+Llama-3.3-70B-Instruct,ShareGPT,7884.64,9312.76,8910.09
+Qwen2.5-72B-Instruct,"(512, 128)",11061.71,12377.85,12114.44
+Qwen2.5-72B-Instruct,"(1024, 128)",12055.66,13555.67,12767.16
+Qwen2.5-72B-Instruct,"(2048, 128)",12060.98,13630.64,13008.26
+Qwen2.5-72B-Instruct,ShareGPT,7755.32,9027.33,8650.82
